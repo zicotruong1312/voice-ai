@@ -2,6 +2,10 @@ require('dotenv').config();
 const { Client, GatewayIntentBits, Collection, REST, Routes } = require('discord.js');
 const fs = require('fs');
 const path = require('path');
+const keepAlive = require('./utils/webServer');
+
+// Khởi chạy Web Server ảo cho Render
+keepAlive();
 
 const client = new Client({
     intents: [

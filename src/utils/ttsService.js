@@ -1,65 +1,68 @@
 const axios = require('axios');
 
-// ElevenLabs Voice IDs
-// Bạn có thể đổi các ID này bằng ID giọng khác trong ElevenLabs Voice Library
+// FPT.AI Voice IDs
+// Docs: https://docs.fpt.ai/docs/en/tts/api-reference
 const VOICE_MAP = {
-    'vi-VN': 'EXAVITQu4vr4xnSDxMaL', // Bella (Ví dụ)
-    'en-US': '21m00Tcm4TlvDq8ikWAM', // Rachel
-    'ja-JP': '2EiwWnXFnvU5JabPnv8n', // Clyde
-    'ko-KR': 'AZnzlk1XvdvUeBnXmlld'  // Domi
+    'vi-VN': 'banmai',     // Ban Mai - Nữ miền Bắc (Most Popular)
+    'en-US': 'leminh',    // FPT.AI chủ yếu hỗ trợ tiếng Việt
+    'ja-JP': 'banmai',    // fallback
+    'ko-KR': 'banmai'     // fallback
 };
 
-/**
- * Gọi API ElevenLabs để tạo audio stream
- * @param {string} text - Văn bản cần đọc
- * @param {string} language - Mã ngôn ngữ (dùng để chọn Voice ID tương ứng)
- * @param {string} style - Cảm xúc (angry, general). ElevenLabs tự nhận diện qua dấu câu và in hoa.
- * @returns {Promise<PassThrough>}
- */
-function generateAudioStream(text, language = 'vi-VN', style = 'general') {
-    return new Promise(async (resolve, reject) => {
-        try {
-            const voiceId = VOICE_MAP[language] || VOICE_MAP['vi-VN'];
-            const url = `https://api.elevenlabs.io/v1/text-to-speech/${voiceId}/stream`;
-            
-            // Nếu style là angry, đảm bảo text có tính chất mạnh (đã xử lý bên profanityFilter)
-            
-            const response = await axios({
-                method: 'POST',
-                url: url,
-                data: {
-                    text: text,
-                    model_id: 'eleven_multilingual_v2',
-                    voice_settings: {
-                        stability: style === 'angry' ? 0.3 : 0.5, // Giảm stability để giọng linh hoạt/cảm xúc hơn khi cáu gắt
-                        similarity_boost: 0.75,
-                        style: style === 'angry' ? 0.5 : 0.0, // Một số giọng hỗ trợ tham số style boost
-                        use_speaker_boost: true
-                    }
-                },
-                headers: {
-                    'Accept': 'audio/mpeg',
-                    'xi-api-key': process.env.ELEVENLABS_API_KEY,
-                    'Content-Type': 'application/json'
-                },
-                responseType: 'stream'
-            });
+// Danh sách giọng đọc có thể dùng:
+// banmai   - Nữ miền Bắc (phổ biến nhất)
+// leminh   - Nam miền Bắc
+// thuminh  - Nữ miền Bắc
+// myan     - Nữ miền Trung
+// giahuy   - Nam miền Trung
+// ngoclan  - Nữ miền Trung
+// linhsan  - Nữ miền Nam
+// lannhi   - Nữ miền Nam
+// minhquang - Nam miền Bắc
 
-            // response.data là một stream trực tiếp từ axios
-            resolve(response.data);
-        } catch (error) {
-            if (error.response && error.response.data && typeof error.response.data.on === 'function') {
-                let errorData = '';
-                error.response.data.on('data', chunk => { errorData += chunk.toString(); });
-                error.response.data.on('end', () => {
-                    console.error("ElevenLabs API Error (Stream):", errorData);
-                });
-            } else {
-                console.error("ElevenLabs API Error:", error.response?.data || error.message);
-            }
-            reject(error);
-        }
+/**
+ * Gọi API FPT.AI để tạo audio stream
+ * @param {string} text - Văn bản cần đọc
+ * @param {string} language - Mã ngôn ngữ (dùng để chọn Voice tương ứng)
+ * @param {string} style - Cảm xúc (angry, general)
+ * @returns {Promise<Stream>}
+ */
+async function generateAudioStream(text, language = 'vi-VN', style = 'general') {
+    const voice = VOICE_MAP[language] || VOICE_MAP['vi-VN'];
+
+    // FPT.AI speed: -3 (chậm nhất) đến 3 (nhanh nhất), 0 = bình thường
+    const speed = style === 'angry' ? '1' : '0';
+
+    // Bước 1: Gửi text tới FPT.AI, nhận về URL audio
+    const ttsResponse = await axios({
+        method: 'POST',
+        url: 'https://api.fpt.ai/hmi/tts/v5',
+        headers: {
+            'api-key': process.env.FPT_API_KEY,
+            'voice': voice,
+            'speed': speed,
+            'Content-Type': 'application/x-www-form-urlencoded'
+        },
+        data: text
     });
+
+    if (ttsResponse.data.error !== 0) {
+        throw new Error(`FPT.AI TTS Error: ${ttsResponse.data.message}`);
+    }
+
+    const audioUrl = ttsResponse.data.async;
+    console.log(`[TTS] FPT.AI audio URL: ${audioUrl}`);
+
+    // Bước 2: Chờ 1 giây rồi tải audio về dưới dạng stream
+    await new Promise(resolve => setTimeout(resolve, 1000));
+
+    const audioResponse = await axios({
+        method: 'GET',
+        url: audioUrl,
+        responseType: 'stream'
+    });
+
+    return audioResponse.data;
 }
 
 module.exports = {

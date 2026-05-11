@@ -1,47 +1,52 @@
 const badwords = require('../config/badwords');
+const { detectEmotion } = require('./emotionDetector');
 
 /**
- * Hàm phân tích văn bản và bọc các từ tục tĩu bằng UPPERCASE và thêm dấu chấm than cho ElevenLabs.
- * Phát hiện từ tục sẽ thay đổi style tổng thể thành angry (cáu gắt).
- * 
+ * Phân tích văn bản — phát hiện từ cấm + xác định cảm xúc
+ * Pipeline: text → badword check → emotion detect → format
+ *
  * @param {string} text - Văn bản gốc từ Discord
- * @returns {{ formattedText: string, style: string }} - Object chứa Text đã xử lý và Cảm xúc
+ * @returns {{ formattedText: string, emotion: string }}
  */
-function formatProfanity(text) {
-    if (!text) return { formattedText: text, style: 'general' };
-    
+function analyzeText(text) {
+    if (!text) return { formattedText: text, emotion: 'neutral' };
+
     let formattedText = text;
     let hasProfanity = false;
-    
-    // Xử lý bằng regex Patterns
+
+    // ─── Kiểm tra regex patterns ────────────────────────────────────
     for (const pattern of badwords.regexPatterns) {
         formattedText = formattedText.replace(pattern, (match) => {
             hasProfanity = true;
-            return match.toUpperCase();
+            return match.toUpperCase(); // UPPERCASE để FPT.AI đọc nhấn mạnh
         });
     }
 
-    // Xử lý bằng plain words
+    // ─── Kiểm tra plain words ────────────────────────────────────────
     for (const word of badwords.plainBadWords) {
-        const wordRegex = new RegExp(`\\b${word}\\b`, 'gi');
+        const wordRegex = new RegExp(`\\b${escapeRegex(word)}\\b`, 'gi');
         formattedText = formattedText.replace(wordRegex, (match) => {
             hasProfanity = true;
             return match.toUpperCase();
         });
     }
-    
-    // Nếu có từ tục tĩu, ElevenLabs sẽ bộc lộ cảm xúc gắt hơn nếu có dấu chấm than ở cuối câu
+
+    // ─── Thêm dấu chấm than nếu có từ tục (tạo giọng mạnh hơn) ────
     if (hasProfanity) {
         if (!formattedText.endsWith('!') && !formattedText.endsWith('?')) {
-            formattedText += '!!!';
+            formattedText += '!';
         }
     }
-    
-    const finalStyle = hasProfanity ? 'angry' : 'general';
-    
-    return { formattedText, style: finalStyle };
+
+    // ─── Phát hiện cảm xúc ──────────────────────────────────────────
+    const { emotion } = detectEmotion(text, hasProfanity);
+
+    return { formattedText, emotion };
 }
 
-module.exports = {
-    formatProfanity
-};
+/** Escape ký tự đặc biệt trong regex */
+function escapeRegex(str) {
+    return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+module.exports = { analyzeText };

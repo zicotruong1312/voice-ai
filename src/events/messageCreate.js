@@ -1,6 +1,6 @@
 const { getVoiceConnection } = require('@discordjs/voice');
 const { getConfig } = require('../config/guildConfig');
-const { formatProfanity } = require('../utils/profanityFilter');
+const { analyzeText } = require('../utils/profanityFilter');
 const { addToQueue } = require('../utils/audioQueue');
 
 module.exports = {
@@ -50,16 +50,16 @@ module.exports = {
             return;
         }
 
-        // Xử lý bộ lọc chửi tục
-        const { formattedText, style } = formatProfanity(cleanText);
+        // Phân tích văn bản: lọc từ cấm + phát hiện cảm xúc
+        const { formattedText, emotion } = analyzeText(cleanText);
         
         // Thêm tên người nói vào đầu câu
         const textToRead = `${message.member.displayName} nói, ${formattedText}`;
         
-        console.log(`[DEBUG] Đã format xong: ${textToRead} | Style: ${style}`);
+        console.log(`[DEBUG] Đã format xong: "${textToRead}" | Cảm xúc: ${emotion}`);
 
-        // Thêm vào hàng đợi TTS với ngôn ngữ và style cảm xúc
-        await addToQueue(message.guild.id, textToRead, config.language, style);
+        // Thêm vào hàng đợi TTS với ngôn ngữ và cảm xúc
+        await addToQueue(message.guild.id, textToRead, config.language, emotion);
         console.log(`[DEBUG] Đã đẩy vào Queue thành công.`);
     }
 };

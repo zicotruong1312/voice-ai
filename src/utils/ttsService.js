@@ -2,11 +2,24 @@ const axios = require('axios');
 const { applyProsody } = require('./prosodyProcessor');
 
 // FPT.AI Voice IDs
+// angry/excited → leminh (Nam - khỏe, dứt khoát)
+// sad/neutral   → banmai (Nữ - mềm mại)
+// question      → banmai
+// sarcasm       → leminh
 const VOICE_MAP = {
-    'vi-VN': 'banmai',     // Ban Mai - Nữ miền Bắc (Most Popular)
+    'vi-VN': 'banmai',
     'en-US': 'leminh',
     'ja-JP': 'banmai',
     'ko-KR': 'banmai'
+};
+
+const EMOTION_VOICE = {
+    angry:    'leminh',
+    excited:  'leminh',
+    sad:      'banmai',
+    question: 'banmai',
+    sarcasm:  'leminh',
+    neutral:  'banmai'
 };
 
 /**
@@ -33,16 +46,21 @@ async function waitForAudioUrl(url, maxRetries = 6, delayMs = 500) {
  * Gọi API FPT.AI để tạo audio stream với ngữ điệu tự nhiên
  * @param {string} text - Văn bản cần đọc
  * @param {string} language - Mã ngôn ngữ
- * @param {string} style - Cảm xúc (angry, general)
+ * @param {string} emotion - Cảm xúc (angry, excited, sad, question, sarcasm, neutral)
  * @returns {Promise<Stream>}
  */
-async function generateAudioStream(text, language = 'vi-VN', style = 'general') {
-    const voice = VOICE_MAP[language] || VOICE_MAP['vi-VN'];
+async function generateAudioStream(text, language = 'vi-VN', emotion = 'neutral') {
+    // Chọn giọng theo cảm xúc + ngôn ngữ
+    const langVoice = VOICE_MAP[language] || VOICE_MAP['vi-VN'];
+    const voice = language === 'vi-VN'
+        ? (EMOTION_VOICE[emotion] || 'banmai')
+        : langVoice;
 
-    // Áp dụng thuật toán nhấn nhá tiếng Việt
-    const { processedText, speed } = applyProsody(text, style);
+    // Áp dụng thuật toán nhấn nhá theo cảm xúc
+    const { processedText, speed } = applyProsody(text, emotion);
+    console.log(`[TTS] Cảm xúc: ${emotion} | Giọng: ${voice} | Speed: ${speed}`);
     console.log(`[TTS] Gốc: "${text}"`);
-    console.log(`[TTS] Sau xử lý: "${processedText}" | Speed: ${speed}`);
+    console.log(`[TTS] Sau xử lý: "${processedText}"`);
 
     // Bước 1: Gửi text tới FPT.AI
     const ttsResponse = await axios({

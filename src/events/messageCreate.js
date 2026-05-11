@@ -11,6 +11,8 @@ module.exports = {
         // Bỏ qua tin nhắn là lệnh (có bắt đầu bằng / sẽ được discord tự lo, nhưng với prefix thông thường thì nên bỏ)
         if (message.content.startsWith('/')) return;
 
+        console.log(`[DEBUG] Nhận được tin nhắn từ ${message.author.tag}: "${message.content}"`);
+
         const connection = getVoiceConnection(message.guild.id);
         if (!connection) return; // Nếu bot không ở trong voice thì không đọc
 
@@ -36,8 +38,11 @@ module.exports = {
 
         // Xử lý bộ lọc chửi tục
         const { formattedText, style } = formatProfanity(message.content);
+        
+        console.log(`[DEBUG] Đã format xong: ${formattedText} | Style: ${style}`);
 
         // Thêm vào hàng đợi TTS với ngôn ngữ và style cảm xúc
         await addToQueue(message.guild.id, formattedText, config.language, style);
+        console.log(`[DEBUG] Đã đẩy vào Queue thành công.`);
     }
 };

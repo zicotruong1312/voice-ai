@@ -48,7 +48,15 @@ function generateAudioStream(text, language = 'vi-VN', style = 'general') {
             // response.data là một stream trực tiếp từ axios
             resolve(response.data);
         } catch (error) {
-            console.error("ElevenLabs API Error:", error.response?.data || error.message);
+            if (error.response && error.response.data && typeof error.response.data.on === 'function') {
+                let errorData = '';
+                error.response.data.on('data', chunk => { errorData += chunk.toString(); });
+                error.response.data.on('end', () => {
+                    console.error("ElevenLabs API Error (Stream):", errorData);
+                });
+            } else {
+                console.error("ElevenLabs API Error:", error.response?.data || error.message);
+            }
             reject(error);
         }
     });

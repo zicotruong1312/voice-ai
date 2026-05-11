@@ -1,29 +1,11 @@
 const axios = require('axios');
 const { applyProsody } = require('./prosodyProcessor');
 
-// FPT.AI Voice IDs
-// angry/excited → leminh (Nam - khỏe, dứt khoát)
-// sad/neutral   → banmai (Nữ - mềm mại)
-// question      → banmai
-// sarcasm       → leminh
-const VOICE_MAP = {
-    'vi-VN': 'banmai',
-    'en-US': 'leminh',
-    'ja-JP': 'banmai',
-    'ko-KR': 'banmai'
-};
-
-const EMOTION_VOICE = {
-    angry:    'leminh',
-    excited:  'leminh',
-    sad:      'banmai',
-    question: 'banmai',
-    sarcasm:  'leminh',
-    neutral:  'banmai'
-};
+// Giọng đọc duy nhất — cảm xúc thể hiện qua speed + dấu câu
+const SINGLE_VOICE = 'banmai'; // Ban Mai - Nữ miền Bắc
 
 /**
- * Poll URL cho đến khi sẵn sàng — bắt đầu nhanh (500ms), tối đa 6 lần
+ * Poll URL cho đến khi sẵn sàng (500ms/lần, tối đa 6 lần)
  */
 async function waitForAudioUrl(url, maxRetries = 6, delayMs = 500) {
     for (let i = 0; i < maxRetries; i++) {
@@ -43,24 +25,19 @@ async function waitForAudioUrl(url, maxRetries = 6, delayMs = 500) {
 }
 
 /**
- * Gọi API FPT.AI để tạo audio stream với ngữ điệu tự nhiên
- * @param {string} text - Văn bản cần đọc
- * @param {string} language - Mã ngôn ngữ
- * @param {string} emotion - Cảm xúc (angry, excited, sad, question, sarcasm, neutral)
+ * Gọi FPT.AI TTS — 1 giọng duy nhất, nhấn nhá qua prosody
+ * @param {string} text     - Văn bản cần đọc
+ * @param {string} language - Mã ngôn ngữ (hiện tại chưa dùng)
+ * @param {string} emotion  - angry | excited | sad | question | sarcasm | neutral
  * @returns {Promise<Stream>}
  */
 async function generateAudioStream(text, language = 'vi-VN', emotion = 'neutral') {
-    // Chọn giọng theo cảm xúc + ngôn ngữ
-    const langVoice = VOICE_MAP[language] || VOICE_MAP['vi-VN'];
-    const voice = language === 'vi-VN'
-        ? (EMOTION_VOICE[emotion] || 'banmai')
-        : langVoice;
-
-    // Áp dụng thuật toán nhấn nhá theo cảm xúc
+    // Áp dụng nhấn nhá theo cảm xúc → trả về text đã xử lý + speed
     const { processedText, speed } = applyProsody(text, emotion);
-    console.log(`[TTS] Cảm xúc: ${emotion} | Giọng: ${voice} | Speed: ${speed}`);
+
+    console.log(`[TTS] Cảm xúc: ${emotion} | Speed: ${speed}`);
     console.log(`[TTS] Gốc: "${text}"`);
-    console.log(`[TTS] Sau xử lý: "${processedText}"`);
+    console.log(`[TTS] Xử lý: "${processedText}"`);
 
     // Bước 1: Gửi text tới FPT.AI
     const ttsResponse = await axios({
@@ -68,7 +45,7 @@ async function generateAudioStream(text, language = 'vi-VN', emotion = 'neutral'
         url: 'https://api.fpt.ai/hmi/tts/v5',
         headers: {
             'api-key': process.env.FPT_API_KEY,
-            'voice': voice,
+            'voice': SINGLE_VOICE,
             'speed': speed,
             'Content-Type': 'application/x-www-form-urlencoded'
         },
@@ -83,7 +60,7 @@ async function generateAudioStream(text, language = 'vi-VN', emotion = 'neutral'
     const audioUrl = ttsResponse.data.async;
     console.log(`[TTS] Nhận URL: ${audioUrl}`);
 
-    // Bước 2: Poll URL cho đến khi sẵn sàng
+    // Bước 2: Chờ URL sẵn sàng
     await waitForAudioUrl(audioUrl);
 
     // Bước 3: Stream audio về
@@ -98,7 +75,4 @@ async function generateAudioStream(text, language = 'vi-VN', emotion = 'neutral'
     return audioResponse.data;
 }
 
-module.exports = {
-    generateAudioStream,
-    VOICE_MAP
-};
+module.exports = { generateAudioStream };

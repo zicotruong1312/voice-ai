@@ -1,5 +1,4 @@
 const axios = require('axios');
-const { PassThrough } = require('stream');
 
 // ElevenLabs Voice IDs
 // Bạn có thể đổi các ID này bằng ID giọng khác trong ElevenLabs Voice Library
@@ -46,11 +45,8 @@ function generateAudioStream(text, language = 'vi-VN', style = 'general') {
                 responseType: 'stream'
             });
 
-            // response.data là một stream
-            const passThrough = new PassThrough();
-            response.data.pipe(passThrough);
-            
-            resolve(passThrough);
+            // response.data là một stream trực tiếp từ axios
+            resolve(response.data);
         } catch (error) {
             console.error("ElevenLabs API Error:", error.response?.data || error.message);
             reject(error);

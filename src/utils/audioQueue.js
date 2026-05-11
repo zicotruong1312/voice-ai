@@ -1,4 +1,4 @@
-const { createAudioPlayer, createAudioResource, AudioPlayerStatus, getVoiceConnection } = require('@discordjs/voice');
+const { createAudioPlayer, createAudioResource, AudioPlayerStatus, getVoiceConnection, StreamType } = require('@discordjs/voice');
 const { Collection } = require('discord.js');
 const { generateAudioStream } = require('./ttsService');
 
@@ -56,7 +56,8 @@ async function playNext(guildId) {
 
     try {
         const stream = await generateAudioStream(text, language, style);
-        const resource = createAudioResource(stream);
+        // StreamType.Arbitrary: báo cho Discord biết đây là MP3, cần transcode sang Opus
+        const resource = createAudioResource(stream, { inputType: StreamType.Arbitrary });
         
         // Đăng ký player với connection nếu chưa có
         connection.subscribe(queue.player);

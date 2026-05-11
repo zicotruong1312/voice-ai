@@ -8,13 +8,22 @@ module.exports = {
     async execute(message) {
         if (message.author.bot || !message.guild) return;
 
-        // Bỏ qua tin nhắn là lệnh (có bắt đầu bằng / sẽ được discord tự lo, nhưng với prefix thông thường thì nên bỏ)
+        // Bỏ qua tin nhắn là lệnh slash
         if (message.content.startsWith('/')) return;
-
-        console.log(`[DEBUG] Nhận được tin nhắn từ ${message.author.tag}: "${message.content}"`);
 
         const connection = getVoiceConnection(message.guild.id);
         if (!connection) return; // Nếu bot không ở trong voice thì không đọc
+
+        // ✅ Chỉ đọc tin nhắn của người đang ngồi CÙNG voice channel với bot
+        const botVoiceChannelId = connection.joinConfig.channelId;
+        const memberVoiceChannelId = message.member?.voice?.channelId;
+
+        if (!memberVoiceChannelId || memberVoiceChannelId !== botVoiceChannelId) {
+            // Người gửi không ở cùng voice channel với bot → bỏ qua
+            return;
+        }
+
+        console.log(`[DEBUG] Nhận được tin nhắn từ ${message.author.tag}: "${message.content}"`);
 
         const config = getConfig(message.guild.id);
 
@@ -23,7 +32,6 @@ module.exports = {
         if (config.allowed === 'everyone') {
             isAllowed = true;
         } else {
-            // Kiểm tra xem config.allowed là role id hay user id
             if (message.author.id === config.allowed) {
                 isAllowed = true; // Là user
             } else if (message.member.roles.cache.has(config.allowed)) {

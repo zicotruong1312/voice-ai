@@ -1,4 +1,5 @@
 const axios = require('axios');
+const { applyProsody } = require('./prosodyProcessor');
 
 // FPT.AI Voice IDs
 const VOICE_MAP = {
@@ -9,26 +10,27 @@ const VOICE_MAP = {
 };
 
 /**
- * Chờ cho tới khi URL audio từ FPT.AI sẵn sàng (polling)
+ * Poll URL cho đến khi sẵn sàng — bắt đầu nhanh (500ms), tối đa 6 lần
  */
-async function waitForAudioUrl(url, maxRetries = 5, delayMs = 1500) {
+async function waitForAudioUrl(url, maxRetries = 6, delayMs = 500) {
     for (let i = 0; i < maxRetries; i++) {
         await new Promise(resolve => setTimeout(resolve, delayMs));
         try {
-            const res = await axios.head(url, { timeout: 5000 });
+            const res = await axios.head(url, { timeout: 3000 });
             if (res.status === 200) {
-                console.log(`[TTS] Audio URL sẵn sàng sau ${i + 1} lần thử.`);
+                console.log(`[TTS] URL sẵn sàng sau ${(i + 1) * delayMs}ms`);
                 return true;
             }
         } catch (e) {
-            console.log(`[TTS] Thử lần ${i + 1}/${maxRetries}: URL chưa sẵn sàng...`);
+            // Chưa sẵn sàng, thử lại
         }
     }
-    return false; // Cho qua dù timeout, thử tải luôn
+    console.log(`[TTS] Hết retry, thử stream thẳng...`);
+    return false;
 }
 
 /**
- * Gọi API FPT.AI để tạo audio stream
+ * Gọi API FPT.AI để tạo audio stream với ngữ điệu tự nhiên
  * @param {string} text - Văn bản cần đọc
  * @param {string} language - Mã ngôn ngữ
  * @param {string} style - Cảm xúc (angry, general)
@@ -36,9 +38,13 @@ async function waitForAudioUrl(url, maxRetries = 5, delayMs = 1500) {
  */
 async function generateAudioStream(text, language = 'vi-VN', style = 'general') {
     const voice = VOICE_MAP[language] || VOICE_MAP['vi-VN'];
-    const speed = style === 'angry' ? '1' : '0';
 
-    // Bước 1: Gửi text tới FPT.AI, nhận về URL audio
+    // Áp dụng thuật toán nhấn nhá tiếng Việt
+    const { processedText, speed } = applyProsody(text, style);
+    console.log(`[TTS] Gốc: "${text}"`);
+    console.log(`[TTS] Sau xử lý: "${processedText}" | Speed: ${speed}`);
+
+    // Bước 1: Gửi text tới FPT.AI
     const ttsResponse = await axios({
         method: 'POST',
         url: 'https://api.fpt.ai/hmi/tts/v5',
@@ -48,7 +54,7 @@ async function generateAudioStream(text, language = 'vi-VN', style = 'general') 
             'speed': speed,
             'Content-Type': 'application/x-www-form-urlencoded'
         },
-        data: text,
+        data: processedText,
         timeout: 10000
     });
 
@@ -57,12 +63,12 @@ async function generateAudioStream(text, language = 'vi-VN', style = 'general') 
     }
 
     const audioUrl = ttsResponse.data.async;
-    console.log(`[TTS] FPT.AI audio URL nhận được: ${audioUrl}`);
+    console.log(`[TTS] Nhận URL: ${audioUrl}`);
 
-    // Bước 2: Chờ cho URL sẵn sàng
+    // Bước 2: Poll URL cho đến khi sẵn sàng
     await waitForAudioUrl(audioUrl);
 
-    // Bước 3: Tải audio về dưới dạng stream
+    // Bước 3: Stream audio về
     const audioResponse = await axios({
         method: 'GET',
         url: audioUrl,
@@ -70,7 +76,7 @@ async function generateAudioStream(text, language = 'vi-VN', style = 'general') 
         timeout: 10000
     });
 
-    console.log(`[TTS] Stream audio đã sẵn sàng, bắt đầu phát...`);
+    console.log(`[TTS] Bắt đầu phát...`);
     return audioResponse.data;
 }
 

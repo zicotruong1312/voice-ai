@@ -33,16 +33,25 @@ module.exports = {
 
         if (!isAllowed) return; // Không có quyền thì bỏ qua
 
-        // Chỉ đọc text, không đọc ảnh, file
-        if (!message.content) return;
+        // Loại bỏ các URL và lấy nội dung sạch (không chứa ID Discord dạng <@123>)
+        let cleanText = message.cleanContent.replace(/https?:\/\/[^\s]+/g, '').trim();
+
+        // Không đọc nếu tin nhắn chỉ có URL (thành chuỗi rỗng) hoặc quá dài (>200 ký tự)
+        if (!cleanText || cleanText.length > 200) {
+            console.log(`[DEBUG] Bỏ qua vì tin nhắn rỗng sau khi lọc hoặc quá dài.`);
+            return;
+        }
 
         // Xử lý bộ lọc chửi tục
-        const { formattedText, style } = formatProfanity(message.content);
+        const { formattedText, style } = formatProfanity(cleanText);
         
-        console.log(`[DEBUG] Đã format xong: ${formattedText} | Style: ${style}`);
+        // Thêm tên người nói vào đầu câu
+        const textToRead = `${message.member.displayName} nói, ${formattedText}`;
+        
+        console.log(`[DEBUG] Đã format xong: ${textToRead} | Style: ${style}`);
 
         // Thêm vào hàng đợi TTS với ngôn ngữ và style cảm xúc
-        await addToQueue(message.guild.id, formattedText, config.language, style);
+        await addToQueue(message.guild.id, textToRead, config.language, style);
         console.log(`[DEBUG] Đã đẩy vào Queue thành công.`);
     }
 };
